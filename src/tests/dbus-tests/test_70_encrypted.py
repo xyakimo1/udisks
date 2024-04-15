@@ -609,6 +609,33 @@ class UdisksEncryptedTestLUKS2(UdisksEncryptedTest):
 
         self.assertEqual(2, _get_luks_version(disk))
 
+    def test_header_backup(self):
+        disk = self.vdevs[0]
+        device = self.get_device(disk)
+        self._create_luks(device, self.PASSPHRASE)
+
+        self.addCleanup(self._remove_luks, device)
+        self.udev_settle()
+
+        # check that backup normally works
+        BACKUP_FILE = "/var/tmp/udisks_encrypted_header_backup.luks"
+        if os.path.exists(BACKUP_FILE):
+            os.unlink(BACKUP_FILE)
+        self.assertFalse(os.path.exists(BACKUP_FILE))
+
+        device.HeaderBackup(BACKUP_FILE, self.no_options,
+                            dbus_interface=self.iface_prefix + '.Encrypted')
+        self.assertTrue(os.path.exists(BACKUP_FILE))
+
+        # check that backup will fail if there is already a file under the specified path
+        msg = 'org.freedesktop.UDisks2.Error.Failed: Error backing up header of encrypted device /dev/.+: Failed to backup LUKS header: Invalid argument'
+        with self.assertRaisesRegex(dbus.exceptions.DBusException, msg):
+            device.HeaderBackup(BACKUP_FILE, self.no_options,
+                                dbus_interface=self.iface_prefix + '.Encrypted')
+
+        self.assertTrue(os.path.exists(BACKUP_FILE))
+
+
     def _get_default_luks_version(self):
         manager = self.get_object('/Manager')
         default_encryption_type = self.get_property(manager, '.Manager', 'DefaultEncryptionType')

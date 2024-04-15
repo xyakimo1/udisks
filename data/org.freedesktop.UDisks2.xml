@@ -2971,7 +2971,6 @@
       <arg name="options" direction="in" type="a{sv}"/>
     </method>
 
-
     <!--
         Convert:
         @target_version: The LUKS version to convert to. Either 'luks1' or 'luks2'.
@@ -2983,6 +2982,21 @@
     -->
     <method name="Convert">
       <arg name="target_version" direction="in" type="s"/>
+      <arg name="options" direction="in" type="a{sv}"/>
+    </method>
+
+    <!--
+        HeaderBackup:
+        @backup_file: Path where to backup header and keyslots.
+        @options: Options (currently unused except for <link linkend="udisks-std-options">standard options</link>).
+        @since: 2.11.0
+
+        Safes header and keyslots to the specified file.
+        There must be no file under the specified path: if a file with the specified path exists, it won't be overriden,
+          and such behaviour is treated like an error.
+    -->
+    <method name="HeaderBackup">
+      <arg name="backup_file" direction="in" type="s"/>
       <arg name="options" direction="in" type="a{sv}"/>
     </method>
 
