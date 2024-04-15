@@ -2987,7 +2987,7 @@
 
     <!--
         HeaderBackup:
-        @backup_file: Path where to backup header and keyslots.
+        @backup_file: Path where to backup header and keyslots to.
         @options: Options (currently unused except for <link linkend="udisks-std-options">standard options</link>).
         @since: 2.11.0
 
@@ -2996,6 +2996,20 @@
           and such behaviour is treated like an error.
     -->
     <method name="HeaderBackup">
+      <arg name="backup_file" direction="in" type="s"/>
+      <arg name="options" direction="in" type="a{sv}"/>
+    </method>
+
+    <!--
+    HeaderRestore:
+    @backup_file: Path where to backup header and keyslots from.
+    @options: Options (currently unused except for <link linkend="udisks-std-options">standard options</link>).
+    @since: 2.11.0
+
+    Writes header and keyslots from the specified file to the specified device.
+    The specified file must exists.
+-->
+    <method name="HeaderRestore">
       <arg name="backup_file" direction="in" type="s"/>
       <arg name="options" direction="in" type="a{sv}"/>
     </method>
