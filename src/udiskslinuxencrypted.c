@@ -1428,124 +1428,125 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
                   const gchar            *passphrase,
                   GVariant               *options)
 {
-    UDisksObject *object = NULL;
-    UDisksBlock *block;
-    UDisksDaemon *daemon;
-    UDisksState *state = NULL;
-    UDisksObject *cleartext_object = NULL;
-    UDisksBlock *unlocked_block = NULL;
-    uid_t caller_uid;
-    GError *error = NULL;
-    UDisksBaseJob *job = NULL;
+  UDisksObject *object = NULL;
+  UDisksBlock *block;
+  UDisksDaemon *daemon;
+  UDisksState *state = NULL;
+  UDisksObject *cleartext_object = NULL;
+  UDisksBlock *unlocked_block = NULL;
+  uid_t caller_uid;
+  GError *error = NULL;
+  UDisksBaseJob *job = NULL;
 
-    const gchar *device;
-    BDCryptoKeyslotContext *context = NULL;
-    guint32 key_size;
-    const gchar *cipher;
-    const gchar *cipher_mode;
-    const gchar *resilience;
-    const gchar *hash;
-    guint64 max_hotzone_size;
-    guint32 sector_size;
-    gboolean new_volume_key;
-    gboolean offline;
-    BDCryptoLUKSPBKDF *pbkdf;
+  const gchar *device;
+  BDCryptoKeyslotContext *context = NULL;
+  guint32 key_size;
+  const gchar *cipher;
+  const gchar *cipher_mode;
+  const gchar *resilience;
+  const gchar *hash;
+  guint64 max_hotzone_size;
+  guint32 sector_size;
+  gboolean new_volume_key;
+  gboolean offline;
+  BDCryptoLUKSPBKDF *pbkdf;
 
-    object = udisks_daemon_util_dup_object (encrypted, &error);
-    if (object == NULL)
-      {
-        g_dbus_method_invocation_return_gerror (invocation, error);
-        goto out;
-      }
+  object = udisks_daemon_util_dup_object (encrypted, &error);
+  if (object == NULL)
+    {
+      g_dbus_method_invocation_return_gerror (invocation, error);
+      goto out;
+    }
 
-    block = udisks_object_peek_block (object);
-    daemon = udisks_linux_block_object_get_daemon (UDISKS_LINUX_BLOCK_OBJECT (object));
-    state = udisks_daemon_get_state (daemon);
+  block = udisks_object_peek_block (object);
+  daemon = udisks_linux_block_object_get_daemon (UDISKS_LINUX_BLOCK_OBJECT (object));
+  state = udisks_daemon_get_state (daemon);
 
-    udisks_linux_block_object_lock_for_cleanup (UDISKS_LINUX_BLOCK_OBJECT (object));
-    udisks_state_check_block (state, udisks_linux_block_object_get_device_number (UDISKS_LINUX_BLOCK_OBJECT (object)));
+  udisks_linux_block_object_lock_for_cleanup (UDISKS_LINUX_BLOCK_OBJECT (object));
+  udisks_state_check_block (state, udisks_linux_block_object_get_device_number (UDISKS_LINUX_BLOCK_OBJECT (object)));
 
-    /* Fail if the device is not a LUKS2 device */
-    if (!(g_strcmp0 (udisks_block_get_id_usage (block), "crypto") == 0 &&
-          g_strcmp0 (udisks_block_get_id_type (block), "crypto_LUKS") == 0 &&
-          g_strcmp0 (udisks_block_get_id_version (block), "2") == 0)) // not that future-proof I guess, haha
-      {
-        g_dbus_method_invocation_return_error (invocation,
-                                               UDISKS_ERROR,
-                                               UDISKS_ERROR_FAILED,
-                                               "Device %s does not appear to be a LUKS2 device",
-                                               udisks_block_get_device (block));
-        goto out;
-      }
+  /* Fail if the device is not a LUKS2 device */
+  if (!(g_strcmp0 (udisks_block_get_id_usage (block), "crypto") == 0 &&
+        g_strcmp0 (udisks_block_get_id_type (block), "crypto_LUKS") == 0 &&
+        g_strcmp0 (udisks_block_get_id_version (block), "2") == 0)) // not that future-proof I guess, haha
+    {
+      g_dbus_method_invocation_return_error (invocation,
+                                             UDISKS_ERROR,
+                                             UDISKS_ERROR_FAILED,
+                                             "Device %s does not appear to be a LUKS2 device",
+                                             udisks_block_get_device (block));
+      goto out;
+    }
 
-    if (!udisks_daemon_util_get_caller_uid_sync (daemon, invocation, NULL /* GCancellable */, &caller_uid, &error))
-      {
-        g_dbus_method_invocation_return_gerror (invocation, error);
-        goto out;
-      }
+  if (!udisks_daemon_util_get_caller_uid_sync (daemon, invocation, NULL /* GCancellable */, &caller_uid, &error))
+    {
+      g_dbus_method_invocation_return_gerror (invocation, error);
+      goto out;
+    }
 
-    job = udisks_daemon_launch_simple_job (daemon,
-                                           UDISKS_OBJECT (object),
-                                           "encrypted-reencrypt",
-                                           caller_uid,
-                                           NULL);
-    if (job == NULL)
-      {
-        g_dbus_method_invocation_return_error (invocation, UDISKS_ERROR, UDISKS_ERROR_FAILED,
-                                               "Failed to create a job object");
-        goto out;
-      }
+  job = udisks_daemon_launch_simple_job (daemon,
+                                         UDISKS_OBJECT (object),
+                                         "encrypted-reencrypt",
+                                         caller_uid,
+                                         NULL);
+  if (job == NULL)
+    {
+      g_dbus_method_invocation_return_error (invocation, UDISKS_ERROR, UDISKS_ERROR_FAILED,
+                                             "Failed to create a job object");
+      goto out;
+    }
 
-    udisks_linux_block_encrypted_lock (block);
+  udisks_linux_block_encrypted_lock (block);
 
-    // do stuff here
-    cleartext_object = udisks_daemon_wait_for_object_sync (daemon,
-                                                           wait_for_cleartext_object,
-                                                           g_strdup (g_dbus_object_get_object_path (G_DBUS_OBJECT (object))),
-                                                           g_free,
-                                                           0, /* timeout_seconds */
-                                                           NULL); /* error */
-    printf("\n%s\n", (cleartext_object == NULL ? "Locked." : "Unlocked."));
-    if (cleartext_object == NULL)
-      {
-        offline = TRUE;
-        device = udisks_block_get_device (block);
-      }
-    else
-      {
-        offline = FALSE;
-        unlocked_block = udisks_object_peek_block (cleartext_object);
-        device = udisks_block_get_device (unlocked_block);
-      }
-    printf("Device: %s.\n", device);
-    context = bd_crypto_keyslot_context_new_passphrase ((const guint8 *) passphrase,
-                                                        strlen(passphrase),
-                                                        &error);
-    if (!context)
-      {
-        g_dbus_method_invocation_return_error (invocation,
-                                               UDISKS_ERROR,
-                                               UDISKS_ERROR_FAILED,
-                                               "Error reencrypting encrypted device %s: %s",
-                                               device,
-                                               error->message);
-        goto out;
-      }
+  // do stuff here
+  cleartext_object = udisks_daemon_wait_for_object_sync (daemon,
+                                                         wait_for_cleartext_object,
+                                                         g_strdup (g_dbus_object_get_object_path (G_DBUS_OBJECT (object))),
+                                                         g_free,
+                                                         0, /* timeout_seconds */
+                                                         NULL); /* error */
+  printf("\n%s\n", (cleartext_object == NULL ? "Locked." : "Unlocked."));
+  if (cleartext_object == NULL)
+    {
+      offline = TRUE;
+      device = udisks_block_get_device (block);
+    }
+  else
+    {
+      offline = FALSE;
+      unlocked_block = udisks_object_peek_block (cleartext_object);
+      device = udisks_block_get_device (unlocked_block);
+    }
+  printf("Device: %s.\n", device);
+  context = bd_crypto_keyslot_context_new_passphrase ((const guint8 *) passphrase,
+                                                      strlen(passphrase),
+                                                      &error);
+  if (!context)
+    {
+      g_dbus_method_invocation_return_error (invocation,
+                                             UDISKS_ERROR,
+                                             UDISKS_ERROR_FAILED,
+                                             "Error reencrypting encrypted device %s: %s",
+                                             device,
+                                             error->message);
+      goto out;
+    }
 
-    bd_crypto_keyslot_context_free(context);
-    udisks_linux_block_encrypted_unlock (block);
+  //
+  udisks_linux_block_encrypted_unlock (block);
 
-    udisks_encrypted_complete_reencrypt (encrypted, invocation);
-    udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
+  udisks_encrypted_complete_reencrypt (encrypted, invocation);
+  udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
 
-    out:
-    if (object != NULL)
-        udisks_linux_block_object_release_cleanup_lock (UDISKS_LINUX_BLOCK_OBJECT (object));
-    if (state != NULL)
-        udisks_state_check (state);
-    g_clear_object (&object);
-    g_clear_error (&error);
-    return TRUE; /* returning TRUE means that we handled the method invocation */
+ out:
+  bd_crypto_keyslot_context_free(context);
+  if (object != NULL)
+      udisks_linux_block_object_release_cleanup_lock (UDISKS_LINUX_BLOCK_OBJECT (object));
+  if (state != NULL)
+      udisks_state_check (state);
+  g_clear_object (&object);
+  g_clear_error (&error);
+  return TRUE; /* returning TRUE means that we handled the method invocation */
 
 }
 
