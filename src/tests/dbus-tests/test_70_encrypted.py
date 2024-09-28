@@ -655,6 +655,17 @@ class UdisksEncryptedTestLUKS2(UdisksEncryptedTest):
         device = self.get_device(disk)
         self.assertHasIface(device, "org.freedesktop.UDisks2.Encrypted")
 
+    def test_reencrypt(self):
+        disk = self.vdevs[0]
+        device = self.get_device(disk)
+        self._create_luks(device, self.PASSPHRASE)
+
+        self.addCleanup(self._remove_luks, device)
+        self.udev_settle()
+
+        device.Reencrypt(self.PASSPHRASE, self.no_options,
+                         dbus_interface=self.iface_prefix + '.Encrypted')
+
     def _get_default_luks_version(self):
         manager = self.get_object('/Manager')
         default_encryption_type = self.get_property(manager, '.Manager', 'DefaultEncryptionType')

@@ -1421,6 +1421,88 @@ handle_header_backup (UDisksEncrypted       *encrypted,
 
 /* ---------------------------------------------------------------------------------------------------- */
 
+/* runs in thread dedicated to handling @invocation */
+static gboolean
+handle_reencrypt (UDisksEncrypted        *encrypted,
+                  GDBusMethodInvocation  *invocation,
+                  const gchar            *passphrase,
+                  GVariant               *options)
+{
+    UDisksObject *object = NULL;
+    UDisksBlock *block;
+    UDisksDaemon *daemon;
+    UDisksState *state = NULL;
+    uid_t caller_uid;
+    GError *error = NULL;
+    UDisksBaseJob *job = NULL;
+
+    object = udisks_daemon_util_dup_object (encrypted, &error);
+    if (object == NULL)
+    {
+        g_dbus_method_invocation_return_gerror (invocation, error);
+        goto out;
+    }
+
+    block = udisks_object_peek_block (object);
+    daemon = udisks_linux_block_object_get_daemon (UDISKS_LINUX_BLOCK_OBJECT (object));
+    state = udisks_daemon_get_state (daemon);
+
+    udisks_linux_block_object_lock_for_cleanup (UDISKS_LINUX_BLOCK_OBJECT (object));
+    udisks_state_check_block (state, udisks_linux_block_object_get_device_number (UDISKS_LINUX_BLOCK_OBJECT (object)));
+
+    /* Fail if the device is not a LUKS2 device */
+    if (!(g_strcmp0 (udisks_block_get_id_usage (block), "crypto") == 0 &&
+          g_strcmp0 (udisks_block_get_id_type (block), "crypto_LUKS") == 0 &&
+          g_strcmp0 (udisks_block_get_id_version (block), "2") == 0)) // not that future-proof I guess, haha
+    {
+        g_dbus_method_invocation_return_error (invocation,
+                                               UDISKS_ERROR,
+                                               UDISKS_ERROR_FAILED,
+                                               "Device %s does not appear to be a LUKS2 device",
+                                               udisks_block_get_device (block));
+        goto out;
+    }
+
+    if (!udisks_daemon_util_get_caller_uid_sync (daemon, invocation, NULL /* GCancellable */, &caller_uid, &error))
+    {
+        g_dbus_method_invocation_return_gerror (invocation, error);
+        goto out;
+    }
+
+    job = udisks_daemon_launch_simple_job (daemon,
+                                           UDISKS_OBJECT (object),
+                                           "encrypted-reencrypt",
+                                           caller_uid,
+                                           NULL);
+    if (job == NULL)
+    {
+        g_dbus_method_invocation_return_error (invocation, UDISKS_ERROR, UDISKS_ERROR_FAILED,
+                                               "Failed to create a job object");
+        goto out;
+    }
+
+    udisks_linux_block_encrypted_lock (block);
+
+    // do stuff here
+
+    udisks_linux_block_encrypted_unlock (block);
+
+    udisks_encrypted_complete_reencrypt (encrypted, invocation);
+    udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
+
+    out:
+    if (object != NULL)
+        udisks_linux_block_object_release_cleanup_lock (UDISKS_LINUX_BLOCK_OBJECT (object));
+    if (state != NULL)
+        udisks_state_check (state);
+    g_clear_object (&object);
+    g_clear_error (&error);
+    return TRUE; /* returning TRUE means that we handled the method invocation */
+
+}
+
+/* ---------------------------------------------------------------------------------------------------- */
+
 static void
 encrypted_iface_init (UDisksEncryptedIface *iface)
 {
@@ -1430,4 +1512,5 @@ encrypted_iface_init (UDisksEncryptedIface *iface)
   iface->handle_resize              = handle_resize;
   iface->handle_convert             = handle_convert;
   iface->handle_header_backup       = handle_header_backup;
+  iface->handle_reencrypt           = handle_reencrypt;
 }
