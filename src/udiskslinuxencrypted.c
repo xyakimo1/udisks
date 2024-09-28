@@ -1441,15 +1441,17 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   const gchar *device;
   BDCryptoKeyslotContext *context = NULL;
   guint32 key_size;
-  const gchar *cipher;
-  const gchar *cipher_mode;
-  const gchar *resilience;
-  const gchar *hash;
+  gchar *cipher;
+  gchar *cipher_mode;
+  gchar *resilience;
+  gchar *hash;
   guint64 max_hotzone_size;
   guint32 sector_size;
   gboolean new_volume_key;
   gboolean offline;
-  BDCryptoLUKSPBKDF *pbkdf;
+  BDCryptoLUKSPBKDF *pbkdf = NULL;
+  BDCryptoLUKSReencryptParams *params = NULL;
+
 
   object = udisks_daemon_util_dup_object (encrypted, &error);
   if (object == NULL)
@@ -1532,6 +1534,19 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
       goto out;
     }
 
+  g_variant_lookup (options, "key_size", "u", &key_size);
+  g_variant_lookup (options, "cipher", "&s", &cipher);
+  g_variant_lookup (options, "cipher_mode", "&s", &cipher_mode);
+  g_variant_lookup (options, "resilience", "&s", &resilience);
+  g_variant_lookup (options, "hash", "&s", &hash);
+  g_variant_lookup (options, "max_hotzone_size", "u", &max_hotzone_size);
+  g_variant_lookup (options, "sector_size", "u", &sector_size);
+  g_variant_lookup (options, "new_volume_key", "b", &new_volume_key);
+  // `offline` is already determined
+  // TODO PBKDF
+
+  params = bd_crypto_luks_reencrypt_params_new (key_size, cipher, cipher_mode, resilience, hash, max_hotzone_size, sector_size, new_volume_key, offline, pbkdf);
+
   //
   udisks_linux_block_encrypted_unlock (block);
 
@@ -1539,6 +1554,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
 
  out:
+  bd_crypto_luks_reencrypt_params_free(params);
   bd_crypto_keyslot_context_free(context);
   if (object != NULL)
       udisks_linux_block_object_release_cleanup_lock (UDISKS_LINUX_BLOCK_OBJECT (object));
