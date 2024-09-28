@@ -1507,7 +1507,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
                                                          g_free,
                                                          0, /* timeout_seconds */
                                                          NULL); /* error */
-  printf("\n%s\n", (cleartext_object == NULL ? "Locked." : "Unlocked."));
+
   if (cleartext_object == NULL)
     {
       offline = TRUE;
@@ -1519,7 +1519,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
       unlocked_block = udisks_object_peek_block (cleartext_object);
       device = udisks_block_get_device (unlocked_block);
     }
-  printf("Device: %s.\n", device);
+
   context = bd_crypto_keyslot_context_new_passphrase ((const guint8 *) passphrase,
                                                       strlen(passphrase),
                                                       &error);
@@ -1531,6 +1531,8 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
                                              "Error reencrypting encrypted device %s: %s",
                                              device,
                                              error->message);
+      udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), FALSE, error->message);
+      udisks_linux_block_encrypted_unlock (block);
       goto out;
     }
 
@@ -1546,6 +1548,19 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   // TODO PBKDF
 
   params = bd_crypto_luks_reencrypt_params_new (key_size, cipher, cipher_mode, resilience, hash, max_hotzone_size, sector_size, new_volume_key, offline, pbkdf);
+
+  if (! bd_crypto_luks_reencrypt(device, params, context, NULL /* prog_func -- TODO */, &error))
+    {
+      g_dbus_method_invocation_return_error (invocation,
+                                             UDISKS_ERROR,
+                                             UDISKS_ERROR_FAILED,
+                                             "Error reencrypting encrypted device %s: %s",
+                                             device,
+                                             error->message);
+      udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), FALSE, error->message);
+      udisks_linux_block_encrypted_unlock (block);
+      goto out;
+    }
 
   //
   udisks_linux_block_encrypted_unlock (block);
