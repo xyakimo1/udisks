@@ -666,6 +666,12 @@ class UdisksEncryptedTestLUKS2(UdisksEncryptedTest):
         device.Reencrypt(self.PASSPHRASE, self.no_options,
                          dbus_interface=self.iface_prefix + '.Encrypted')
 
+        device.Lock(self.no_options, dbus_interface=self.iface_prefix + '.Encrypted')
+
+        device.Reencrypt(self.PASSPHRASE, self.no_options,
+                         dbus_interface=self.iface_prefix + '.Encrypted')
+
+
     def _get_default_luks_version(self):
         manager = self.get_object('/Manager')
         default_encryption_type = self.get_property(manager, '.Manager', 'DefaultEncryptionType')
