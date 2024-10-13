@@ -1537,16 +1537,16 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
       goto out;
     }
 
-  g_variant_lookup (options, "key_size", "u", &key_size);
+  g_variant_lookup (options, "key-size", "u", &key_size);
   g_variant_lookup (options, "cipher", "&s", &cipher);
-  g_variant_lookup (options, "cipher_mode", "&s", &cipher_mode);
+  g_variant_lookup (options, "cipher-mode", "&s", &cipher_mode);
   g_variant_lookup (options, "resilience", "&s", &resilience);
   g_variant_lookup (options, "hash", "&s", &hash);
-  g_variant_lookup (options, "max_hotzone_size", "u", &max_hotzone_size);
-  g_variant_lookup (options, "sector_size", "u", &sector_size);
-  g_variant_lookup (options, "new_volume_key", "b", &new_volume_key);
+  g_variant_lookup (options, "max-hotzone-size", "u", &max_hotzone_size);
+  g_variant_lookup (options, "sector-size", "u", &sector_size);
+  g_variant_lookup (options, "new-volume_key", "b", &new_volume_key);
   // `offline` is already determined
-  g_variant_lookup (options, "pbkdf_type", "&s", &pbkdf_type);
+  g_variant_lookup (options, "pbkdf-type", "&s", &pbkdf_type);
 
   pbkdf = bd_crypto_luks_pbkdf_new (pbkdf_type, NULL, 0, 0, 0, 0);
   params = bd_crypto_luks_reencrypt_params_new (key_size, cipher, cipher_mode, resilience, hash, max_hotzone_size, sector_size, new_volume_key, offline, pbkdf);

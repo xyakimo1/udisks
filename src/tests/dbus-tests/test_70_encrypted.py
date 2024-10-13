@@ -664,21 +664,22 @@ class UdisksEncryptedTestLUKS2(UdisksEncryptedTest):
         self.udev_settle()
 
         d = dbus.Dictionary(signature='sv')
-        d['key_size'] = dbus.UInt32(256)
+        d['key-size'] = dbus.UInt32(256)
         d['cipher'] = "aes"
         d['cipher-mode'] = "cbc-essiv:sha256"
         d['resilience'] = "checksum"
         d['hash'] = "sha256"
-        d['max_hotzone_size'] = dbus.UInt64(0)
-        d['sector_size'] = dbus.UInt32(4096)
-        d['new_volume_key'] = True
-        d['pbkdf_type'] = ""
+        d['max-hotzone-size'] = dbus.UInt64(0)
+        d['sector-size'] = dbus.UInt32(512)
+        d['new-volume_key'] = True
+        d['pbkdf-type'] = ""
 
+        # Online
         device.Reencrypt(self.PASSPHRASE, d,
                          dbus_interface=self.iface_prefix + '.Encrypted')
 
         device.Lock(self.no_options, dbus_interface=self.iface_prefix + '.Encrypted')
-
+        # Offline
         device.Reencrypt(self.PASSPHRASE, d,
                          dbus_interface=self.iface_prefix + '.Encrypted')
 
