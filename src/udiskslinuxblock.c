@@ -4299,6 +4299,72 @@ handle_restore_encrypted_header (UDisksBlock           *encrypted,
 
 /* ---------------------------------------------------------------------------------------------------- */
 
+/* runs in thread dedicated to handling method call */
+static gboolean
+handle_encrypt (UDisksBlock           *block,
+                GDBusMethodInvocation *invocation,
+                const gchar           *passphrase,
+                GVariant              *options)
+{
+  UDisksObject *object = NULL;
+  UDisksDaemon *daemon;
+  UDisksState *state = NULL;
+  uid_t caller_uid;
+  GError *error = NULL;
+  UDisksBaseJob *job = NULL;
+
+  object = udisks_daemon_util_dup_object (block, &error);
+  if (object == NULL)
+  {
+    g_dbus_method_invocation_return_gerror (invocation, error);
+    goto out;
+  }
+
+  daemon = udisks_linux_block_object_get_daemon (UDISKS_LINUX_BLOCK_OBJECT (object));
+  state = udisks_daemon_get_state (daemon);
+
+  udisks_linux_block_object_lock_for_cleanup (UDISKS_LINUX_BLOCK_OBJECT (object));
+  udisks_state_check_block (state, udisks_linux_block_object_get_device_number (UDISKS_LINUX_BLOCK_OBJECT (object)));
+
+  if (!udisks_daemon_util_get_caller_uid_sync (daemon, invocation, NULL /* GCancellable */, &caller_uid, &error))
+  {
+    g_dbus_method_invocation_return_gerror (invocation, error);
+    goto out;
+  }
+
+  job = udisks_daemon_launch_simple_job (daemon,
+                                         UDISKS_OBJECT (object),
+                                         "block-encrypt",
+                                         caller_uid,
+                                         NULL);
+  if (job == NULL)
+  {
+    g_dbus_method_invocation_return_error (invocation, UDISKS_ERROR, UDISKS_ERROR_FAILED,
+                                           "Failed to create a job object");
+    goto out;
+  }
+
+  udisks_linux_block_encrypted_lock (block);
+
+  // do stuff here
+
+  udisks_linux_block_encrypted_unlock (block);
+
+  udisks_block_complete_encrypt (block, invocation);
+  udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
+
+  out:
+  if (object != NULL)
+    udisks_linux_block_object_release_cleanup_lock (UDISKS_LINUX_BLOCK_OBJECT (object));
+  if (state != NULL)
+    udisks_state_check (state);
+  g_clear_object (&object);
+  g_clear_error (&error);
+  return TRUE; /* returning TRUE means that we handled the method invocation */
+}
+
+/* ---------------------------------------------------------------------------------------------------- */
+
 static void
 block_iface_init (UDisksBlockIface *iface)
 {
@@ -4313,4 +4379,5 @@ block_iface_init (UDisksBlockIface *iface)
   iface->handle_open_device               = handle_open_device;
   iface->handle_rescan                    = handle_rescan;
   iface->handle_restore_encrypted_header  = handle_restore_encrypted_header;
+  iface->handle_encrypt                   = handle_encrypt;
 }

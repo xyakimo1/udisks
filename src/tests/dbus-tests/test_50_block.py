@@ -357,6 +357,11 @@ class UdisksBlockTest(udiskstestcase.UdisksTestCase):
 
         disk.Rescan(self.no_options, dbus_interface=self.iface_prefix + '.Block')
 
+    def test_encrypt(self):
+        disk = self.get_object('/block_devices/' + os.path.basename(self.vdevs[0]))
+        self.assertIsNotNone(disk)
+
+        disk.Encrypt(self.LUKS_PASSPHRASE, self.no_options, dbus_interface=self.iface_prefix + '.Block')
 
 class UdisksBlockRemovableTest(udiskstestcase.UdisksTestCase):
     '''Extra block device tests over a scsi_debug removable device'''
