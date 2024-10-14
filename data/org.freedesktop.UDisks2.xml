@@ -3059,7 +3059,6 @@
         Reencrypts a LUKS2 device, i.e. changes one or more of: cipher, cipher mode, volume key.
     -->
     <method name="Reencrypt">
-      <arg name="passphrase" direction="in" type="s"/>
       <arg name="options" direction="in" type="a{sv}"/>
     </method>
 

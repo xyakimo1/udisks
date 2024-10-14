@@ -1425,7 +1425,6 @@ handle_header_backup (UDisksEncrypted       *encrypted,
 static gboolean
 handle_reencrypt (UDisksEncrypted        *encrypted,
                   GDBusMethodInvocation  *invocation,
-                  const gchar            *passphrase,
                   GVariant               *options)
 {
   UDisksObject *object = NULL;
@@ -1439,7 +1438,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   UDisksBaseJob *job = NULL;
 
   const gchar *device;
-  BDCryptoKeyslotContext *context = NULL;
+  GString *passphrase;
   guint32 key_size;
   gchar *cipher;
   gchar *cipher_mode;
@@ -1450,6 +1449,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   gboolean new_volume_key;
   gboolean offline;
   gchar *pbkdf_type;
+  BDCryptoKeyslotContext *context = NULL;
   BDCryptoLUKSPBKDF *pbkdf = NULL;
   BDCryptoLUKSReencryptParams *params = NULL;
 
@@ -1521,17 +1521,12 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
       device = udisks_block_get_device (unlocked_block);
     }
 
-  context = bd_crypto_keyslot_context_new_passphrase ((const guint8 *) passphrase,
-                                                      strlen(passphrase),
-                                                      &error);
-  if (!context)
+  if (!udisks_variant_lookup_binary (options, "passphrase", &passphrase))
     {
       g_dbus_method_invocation_return_error (invocation,
                                              UDISKS_ERROR,
                                              UDISKS_ERROR_FAILED,
-                                             "Error reencrypting encrypted device %s: %s",
-                                             device,
-                                             error->message);
+                                             "Passphrase was not specified.");
       udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), FALSE, error->message);
       udisks_linux_block_encrypted_unlock (block);
       goto out;
@@ -1547,6 +1542,22 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   g_variant_lookup (options, "new-volume_key", "b", &new_volume_key);
   // `offline` is already determined
   g_variant_lookup (options, "pbkdf-type", "&s", &pbkdf_type);
+
+  context = bd_crypto_keyslot_context_new_passphrase ((const guint8 *) passphrase->str,
+                                                      passphrase->len,
+                                                      &error);
+  if (!context)
+    {
+      g_dbus_method_invocation_return_error (invocation,
+                                             UDISKS_ERROR,
+                                             UDISKS_ERROR_FAILED,
+                                             "Error reencrypting encrypted device %s: %s",
+                                             device,
+                                             error->message);
+      udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), FALSE, error->message);
+      udisks_linux_block_encrypted_unlock (block);
+      goto out;
+    }
 
   pbkdf = bd_crypto_luks_pbkdf_new (pbkdf_type, NULL, 0, 0, 0, 0);
   params = bd_crypto_luks_reencrypt_params_new (key_size, cipher, cipher_mode, resilience, hash, max_hotzone_size, sector_size, new_volume_key, offline, pbkdf);
