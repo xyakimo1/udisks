@@ -1453,9 +1453,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   BDCryptoLUKSPBKDF *pbkdf = NULL;
   BDCryptoLUKSReencryptParams *params = NULL;
 
-  gboolean logging_initialized;
-  logging_initialized = bd_utils_init_logging(bd_utils_log_stdout, &error);
-  if (!logging_initialized) {
+  if (!bd_utils_init_logging(bd_utils_log_stdout, &error)) {
     printf("\n FAILED to initialized logging\n");
   } else {
     printf("\n OK initialized logging\n");
