@@ -1453,6 +1453,13 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   BDCryptoLUKSPBKDF *pbkdf = NULL;
   BDCryptoLUKSReencryptParams *params = NULL;
 
+  gboolean logging_initialized;
+  logging_initialized = bd_utils_init_logging(bd_utils_log_stdout, &error);
+  if (!logging_initialized) {
+    printf("\n FAILED to initialized logging\n");
+  } else {
+    printf("\n OK initialized logging\n");
+  };
 
   object = udisks_daemon_util_dup_object (encrypted, &error);
   if (object == NULL)
@@ -1543,6 +1550,9 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   // `offline` is already determined
   g_variant_lookup (options, "pbkdf-type", "&s", &pbkdf_type);
 
+  printf("\n\nPassphrase: '%s'.\n", passphrase->str);
+  printf("Passphrase len: %d.\n", passphrase->len);
+
   context = bd_crypto_keyslot_context_new_passphrase ((const guint8 *) passphrase->str,
                                                       passphrase->len,
                                                       &error);
@@ -1562,6 +1572,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   pbkdf = bd_crypto_luks_pbkdf_new (pbkdf_type, NULL, 0, 0, 0, 0);
   params = bd_crypto_luks_reencrypt_params_new (key_size, cipher, cipher_mode, resilience, hash, max_hotzone_size, sector_size, new_volume_key, offline, pbkdf);
 
+  printf("Before calling libblockdev reencrypt\n");
   if (! bd_crypto_luks_reencrypt (device, params, context, NULL /* prog_func -- TODO */, &error))
     {
       g_dbus_method_invocation_return_error (invocation,
@@ -1574,6 +1585,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
       udisks_linux_block_encrypted_unlock (block);
       goto out;
     }
+  printf("libblockdev reencrypt OK\n");
 
   //
   udisks_linux_block_encrypted_unlock (block);
@@ -1582,6 +1594,7 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
   udisks_simple_job_complete (UDISKS_SIMPLE_JOB (job), TRUE, NULL);
 
  out:
+  printf("begin out\n");
   bd_crypto_luks_pbkdf_free (pbkdf);
   bd_crypto_luks_reencrypt_params_free (params);
   bd_crypto_keyslot_context_free (context);
@@ -1591,8 +1604,8 @@ handle_reencrypt (UDisksEncrypted        *encrypted,
       udisks_state_check (state);
   g_clear_object (&object);
   g_clear_error (&error);
+  printf("out OK\n");
   return TRUE; /* returning TRUE means that we handled the method invocation */
-
 }
 
 /* ---------------------------------------------------------------------------------------------------- */
