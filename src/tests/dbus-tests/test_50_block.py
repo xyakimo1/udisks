@@ -361,7 +361,18 @@ class UdisksBlockTest(udiskstestcase.UdisksTestCase):
         disk = self.get_object('/block_devices/' + os.path.basename(self.vdevs[0]))
         self.assertIsNotNone(disk)
 
-        disk.Encrypt(self.LUKS_PASSPHRASE, self.no_options, dbus_interface=self.iface_prefix + '.Block')
+        d = dbus.Dictionary(signature='sv')
+        d['passphrase'] = "shouldnotseeme"
+        d['key-size'] = dbus.UInt32(256)
+        d['cipher'] = "aes"
+        d['cipher-mode'] = "cbc-essiv:sha256"
+        d['resilience'] = "datashift" # required, otherwise won't work
+        d['hash'] = "sha256"
+        d['max-hotzone-size'] = dbus.UInt64(0)
+        d['sector-size'] = dbus.UInt32(512)
+        d['new-volume_key'] = True
+
+        disk.Encrypt(self.LUKS_PASSPHRASE, d, dbus_interface=self.iface_prefix + '.Block')
 
 class UdisksBlockRemovableTest(udiskstestcase.UdisksTestCase):
     '''Extra block device tests over a scsi_debug removable device'''
