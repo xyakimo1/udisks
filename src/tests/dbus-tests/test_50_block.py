@@ -358,8 +358,9 @@ class UdisksBlockTest(udiskstestcase.UdisksTestCase):
         disk.Rescan(self.no_options, dbus_interface=self.iface_prefix + '.Block')
 
     def test_encrypt(self):
-        disk = self.get_object('/block_devices/' + os.path.basename(self.vdevs[0]))
-        self.assertIsNotNone(disk)
+        disk = self.vdevs[0]
+        device = self.get_device(disk)
+        self.assertIsNotNone(device)
 
         d = dbus.Dictionary(signature='sv')
         d['passphrase'] = "shouldnotseeme"
@@ -372,7 +373,19 @@ class UdisksBlockTest(udiskstestcase.UdisksTestCase):
         d['sector-size'] = dbus.UInt32(512)
         d['new-volume_key'] = True
 
-        disk.Encrypt(self.LUKS_PASSPHRASE, d, dbus_interface=self.iface_prefix + '.Block')
+        device.Encrypt(self.LUKS_PASSPHRASE, d, dbus_interface=self.iface_prefix + '.Block')
+
+        # verify that device now has the .Encrypted interface
+        device = self.get_device(disk)
+        self.assertHasIface(device, "org.freedesktop.UDisks2.Encrypted")
+
+        # verify that the newly encrypted device can be unlocked
+        luks_obj = device.Unlock("shouldnotseeme", self.no_options,
+                                  dbus_interface=self.iface_prefix + '.Encrypted')
+        self.assertIsNotNone(luks_obj)
+        ret, _ = self.run_command("ls /dev/mapper/luks*")
+        self.assertEqual(ret, 0)
+
 
 class UdisksBlockRemovableTest(udiskstestcase.UdisksTestCase):
     '''Extra block device tests over a scsi_debug removable device'''
